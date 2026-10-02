@@ -1,0 +1,16 @@
+# Local orchestration for both apps (Phase 1 - local runtime, no AWS).
+# Run:  docker compose up --build
+services:
+  orders-node:
+    build: ./apps/orders-node
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+
+  users-python:
+    build: ./apps/users-python
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000

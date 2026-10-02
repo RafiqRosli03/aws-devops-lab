@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# orders-node (App A) - hardened Deployment + ClusterIP Service + ServiceAccount
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: orders-node
+  namespace: dev
+# No AWS access needed; a dedicated SA (not "default") keeps RBAC scoped.
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders-node
+  namespace: dev
+  labels:
+    app: orders-node
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: orders-node
+  template:
+    metadata:
+      labels:
+        app: orders-node
+    spec:
+      serviceAccountName: orders-node
+      automountServiceAccountToken: false
+      # Pod-level security context (restricted PSA compliant).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: orders-node
+          # Image is overridden per-deploy by the pipeline (kustomize edit set image).
+          image: 497862079645.dkr.ecr.ap-southeast-5.amazonaws.com/orders-node:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+          # Container-level security context.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "250m"
+              memory: "128Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          # Writable /tmp since the root filesystem is read-only.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders-node
+  namespace: dev
+  labels:
+    app: orders-node
+spec:
+  type: ClusterIP
+  selector:
+    app: orders-node
+  ports:
+    - port: 80
+      targetPort: 3000

@@ -1,0 +1,13 @@
+# Application namespace with Pod Security Admission set to "restricted"
+# (Task #5). The restricted profile rejects pods that run as root, allow
+# privilege escalation, don't drop capabilities, etc. - enforcing the same
+# hardening our securityContext sets, at the namespace gate.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted

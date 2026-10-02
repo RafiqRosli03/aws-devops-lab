@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# NetworkPolicies (Task #4) - default-deny everything, then allow only what's
+# needed. NOTE: requires the VPC CNI network-policy feature to be ENABLED on
+# the cluster (off by default) - see Phase 4 verification. Without enforcement
+# these are declared but not applied by the data plane.
+# ---------------------------------------------------------------------------
+# 1) Default deny ALL ingress and egress for every pod in the namespace.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: dev
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+# 2) Allow DNS egress (needed for any name resolution) to kube-dns.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: dev
+spec:
+  podSelector: {}
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+# 3) Allow ingress to the app pods on their container ports (from the ALB /
+#    load balancer, which comes from outside the cluster = all sources here).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-app-ingress
+  namespace: dev
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["orders-node", "users-python"]
+  policyTypes: ["Ingress"]
+  ingress:
+    - ports:
+        - protocol: TCP
+          port: 3000
+        - protocol: TCP
+          port: 8000

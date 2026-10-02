@@ -1,0 +1,140 @@
+===============================================================================
+ DEVOPS PROJECT - MASTER PLAN (HIGH-LEVEL OVERVIEW)
+===============================================================================
+
+PURPOSE
+-------
+One end-to-end DevOps lab project on AWS that covers the four core DevOps skills:
+CI/CD, Containers & Orchestration, Infrastructure as Code, and Cloud. We build TWO
+small microservices (Node.js + Python) and drive both through one identical DevOps
+workflow, proving the pipeline is language-agnostic.
+
+The apps are intentionally simple. The value is the pipeline, the containers, the
+infra-as-code, and the AWS wiring around them.
+
+
+THE TWO APPLICATIONS
+--------------------
+  App A - Node.js (Express)  -> "orders" REST API
+  App B - Python  (FastAPI)  -> "users"  REST API
+
+Both expose: GET /health, plus a couple of simple GET/POST endpoints (in-memory data).
+
+
+TECH STACK / DEFAULTS (change if needed)
+----------------------------------------
+  Orchestrator ...... Amazon EKS (real Kubernetes)
+  CI/CD ............. GitLab CI (OIDC to AWS, no static keys)
+  Registry .......... Amazon ECR (one repo per app)
+  IaC ............... Terraform (remote state in S3 + DynamoDB lock)
+  Region ............ ap-southeast-5
+  Extras ............ KMS, Secrets Manager, CloudWatch, GuardDuty, Security Hub
+
+
+HIGH-LEVEL FLOW
+---------------
+  Developer git push
+        |
+        v
+  GitLab CI pipeline (lint -> test -> build -> push image -> deploy)
+        |  (authenticates to AWS via OIDC - no long-lived keys)
+        v
+  Amazon ECR (images)  --->  Amazon EKS (app pods)  <--- Terraform builds all infra
+        |
+        v
+  App running on EKS behind an ALB Ingress
+        |
+  CloudWatch + GuardDuty + Security Hub watch the account
+
+
+THE 5 PHASES AT A GLANCE
+------------------------
+  PHASE 1 - Two Applications + Docker
+     Build both apps, unit tests, multi-stage Dockerfiles (non-root), run locally
+     with docker-compose. NO AWS yet. (Local, zero cost.)
+     -> See: PHASE-1.txt
+
+  PHASE 2 - Infrastructure as Code (Terraform)
+     Stand up VPC, ECR, EKS, IAM/OIDC, KMS, Secrets Manager entirely from Terraform.
+     apply builds it, destroy removes it.
+     -> See: PHASE-2.txt
+
+  PHASE 3 - CI/CD Pipeline (GitLab CI)
+     Every push builds/tests/pushes/deploys both apps. Rules/changes filters,
+     caching, ECR tagging by git SHA, dev->prod promotion with a manual gate,
+     OIDC auth.
+     -> See: PHASE-3.txt
+
+  PHASE 4 - Kubernetes Hardening
+     Deployments/Services + shared ALB Ingress (/orders, /users), RBAC,
+     network policies, non-root/read-only pods, secrets from Secrets Manager, HPA.
+     -> See: PHASE-4.txt
+
+  PHASE 5 - Cloud Posture & Observability
+     CloudWatch logs/metrics/dashboard, alarm -> SNS, GuardDuty + Security Hub,
+     cost hygiene. Confirm full teardown.
+     -> See: PHASE-5.txt
+
+
+HOW THE TWO APPS FLOW THROUGH ALL PHASES
+----------------------------------------
+  Phase | App A (Node)                         | App B (Python)
+  ------+--------------------------------------+-------------------------------------
+   1    | Express API, Jest, multi-stage image | FastAPI, pytest, multi-stage image
+   2    | ECR repo "orders-node"               | ECR repo "users-python"
+   3    | build/test/push/deploy (path filter) | build/test/push/deploy (path filter)
+   4    | Deployment + /orders ingress path    | Deployment + /users ingress path
+   5    | logs / metrics / alarms              | logs / metrics / alarms
+
+
+DEPENDENCIES BETWEEN PHASES
+---------------------------
+  Phase 1 -> nothing (local only)
+  Phase 2 -> needs Phase 1 images conceptually (repos to push into)
+  Phase 3 -> needs Phase 2 (ECR, EKS, OIDC role) to deploy into
+  Phase 4 -> needs Phase 3 (a working deploy) to harden
+  Phase 5 -> needs Phase 4 (a running hardened app) to observe
+  Do them IN ORDER. Stop after any phase and still have something demonstrable.
+
+
+SUGGESTED PACE
+--------------
+  Phase 1 .... ~1 week
+  Phase 2 .... ~1-2 weeks  (Terraform + EKS is the biggest learning curve)
+  Phase 3 .... ~1-2 weeks
+  Phase 4 .... ~1 week
+  Phase 5 .... ~1 week
+
+
+DEFINITION OF DONE (WHOLE PROJECT)
+----------------------------------
+  [ ] git push triggers a pipeline that builds, tests, pushes to ECR, and deploys
+      BOTH apps to EKS with no manual steps.
+  [ ] Entire AWS environment stands up and tears down from Terraform alone.
+  [ ] Both apps run on EKS with RBAC + network policies + non-root + no plaintext
+      secrets.
+  [ ] GuardDuty + Security Hub on; CloudWatch shows app/infra logs with one alert.
+
+
+COST REMINDER (IMPORTANT)
+-------------------------
+  EKS control plane (~$0.10/hr ~= $73/mo) + node EC2 + NAT + ALB cost money while
+  running. Run "terraform apply" at the START of a session and "terraform destroy"
+  at the END. Never leave the cluster running overnight for a lab.
+
+  Cheaper variant: swap EKS for ECS Fargate (no control-plane fee) if cost is the
+  main constraint - but you lose raw Kubernetes practice (a listed roadmap skill).
+
+
+REFERENCE FILES IN THIS FOLDER
+------------------------------
+  00-MASTER-PLAN.txt ........ this file (high-level overview)
+  PHASE-1.txt ............... detailed plan - apps + Docker
+  PHASE-2.txt ............... detailed plan - Terraform / IaC
+  PHASE-3.txt ............... detailed plan - CI/CD pipeline
+  PHASE-4.txt ............... detailed plan - Kubernetes hardening
+  PHASE-5.txt ............... detailed plan - observability + posture
+  00-project-plan.md ........ original planning notes
+  02-phase-plan.md .......... markdown version of the phase plan
+  01-hld-architecture.drawio  high-level design diagram (AWS icons)
+===============================================================================

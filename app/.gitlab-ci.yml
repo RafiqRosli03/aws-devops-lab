@@ -1,0 +1,312 @@
+# =============================================================================
+# Phase 3 - CI/CD Pipeline (GitLab CI -> AWS via OIDC)
+# -----------------------------------------------------------------------------
+# Every push to main builds, tests, packages (ECR), and deploys BOTH apps to EKS.
+# Path filters mean only the changed app rebuilds. No static AWS keys: GitLab
+# requests an OIDC token and assumes the Phase-2 deploy role.
+#
+# Required CI/CD variables (Settings > CI/CD > Variables):
+#   AWS_ROLE_ARN    = arn:aws:iam::497862079645:role/devops-lab-dev-gitlab-deploy    (app pipeline)
+#   AWS_TF_ROLE_ARN = arn:aws:iam::497862079645:role/devops-lab-dev-gitlab-terraform (infra pipeline)
+#
+# TWO INDEPENDENT PIPELINES in one file, separated by path filters:
+#   infra/** changes -> tf-validate -> tf-plan -> tf-apply (manual gate)
+#   apps/**  changes -> test -> auth -> build -> deploy -> deploy-prod (manual gate)
+#
+# Design note: Kaniko and kubectl images do NOT ship the AWS CLI, so AWS auth
+# (assume-role, ECR login, kubeconfig) is done in jobs that run on an image that
+# HAS the CLI (amazon/aws-cli). The ECR login job hands Kaniko a Docker config
+# via a short-lived artifact.
+# =============================================================================
+
+stages:
+  # --- Infrastructure pipeline (triggered by infra/** changes) ---
+  - tf-validate
+  - tf-plan
+  - tf-apply
+  # --- Application pipeline (triggered by apps/** changes) ---
+  - test
+  - auth
+  - build
+  - deploy
+  - deploy-prod
+
+variables:
+  AWS_DEFAULT_REGION: "ap-southeast-5"
+  AWS_ACCOUNT_ID: "497862079645"
+  EKS_CLUSTER_NAME: "devops-lab-dev"
+  ECR_REGISTRY: "497862079645.dkr.ecr.ap-southeast-5.amazonaws.com"
+  # Immutable image tag = exact commit. Easy rollback, reproducible deploys.
+  IMAGE_TAG: "$CI_COMMIT_SHORT_SHA"
+
+# Run on commits to the default branch and on merge requests.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+# OIDC token definition reused by every job that talks to AWS.
+.oidc_token: &oidc_token
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: "https://gitlab.com"
+
+# =============================================================================
+# INFRASTRUCTURE PIPELINE (Terraform) - runs only when infra/** changes.
+# Assumes the SEPARATE, privileged Terraform role (AWS_TF_ROLE_ARN), distinct
+# from the narrow app-deploy role. fmt+validate+plan run automatically; apply
+# is a manual gate on the default branch.
+# =============================================================================
+.tf_base: &tf_base
+  image:
+    # Must be >= 1.10 — backend.tf uses native S3 state locking (use_lockfile),
+    # which older versions reject. Matches the local Terraform version.
+    name: hashicorp/terraform:1.13
+    entrypoint: [""]
+  <<: *oidc_token
+  variables:
+    TF_DIR: "infra/envs/dev"
+    # gitlab_project_path is normally in dev.tfvars (gitignored). Pass it via a
+    # TF_VAR_ env var so the pipeline doesn't need the untracked file.
+    TF_VAR_gitlab_project_path: "$CI_PROJECT_PATH"
+  before_script:
+    # Terraform image lacks the AWS CLI; assume the role using Terraform's own
+    # AWS provider assume-role-with-web-identity support via env vars instead.
+    - echo "$GITLAB_OIDC_TOKEN" > /tmp/web_identity_token
+    - export AWS_ROLE_ARN="$AWS_TF_ROLE_ARN"
+    - export AWS_WEB_IDENTITY_TOKEN_FILE=/tmp/web_identity_token
+    - export AWS_ROLE_SESSION_NAME="gitlab-tf-$CI_PIPELINE_ID"
+    - cd "$TF_DIR"
+    - terraform init -input=false
+
+tf:validate:
+  stage: tf-validate
+  <<: *tf_base
+  rules:
+    - changes: ["infra/**/*"]
+  script:
+    - terraform fmt -recursive -check -diff ../../
+    - terraform validate
+
+tf:plan:
+  stage: tf-plan
+  <<: *tf_base
+  rules:
+    - changes: ["infra/**/*"]
+  script:
+    - terraform plan -input=false -out=tfplan
+  artifacts:
+    paths: ["$TF_DIR/tfplan"]
+    expire_in: 1 hour
+
+tf:apply:
+  stage: tf-apply
+  <<: *tf_base
+  needs: ["tf:plan"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: ["infra/**/*"]
+      when: manual
+  allow_failure: false
+  environment:
+    name: infra-dev
+  script:
+    - terraform apply -input=false tfplan
+
+# -----------------------------------------------------------------------------
+# TEST STAGE (gate #1 - quality). Only the changed app runs.
+# -----------------------------------------------------------------------------
+test:orders-node:
+  stage: test
+  image: node:20
+  rules:
+    - changes: ["apps/orders-node/**/*"]
+  cache:
+    key:
+      files: ["apps/orders-node/package-lock.json"]
+    paths: ["apps/orders-node/node_modules/"]
+  script:
+    - cd apps/orders-node
+    - npm ci
+    - npm test
+
+test:users-python:
+  stage: test
+  image: python:3.12
+  rules:
+    - changes: ["apps/users-python/**/*"]
+  cache:
+    key:
+      files: ["apps/users-python/requirements.txt"]
+    paths: [".cache/pip"]
+  variables:
+    PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  script:
+    - cd apps/users-python
+    - pip install -r requirements.txt
+    - pytest
+
+# -----------------------------------------------------------------------------
+# AUTH STAGE - get an ECR Docker auth config and hand it to the build stage.
+# One job covers both apps (same registry). Artifact is short-lived.
+# -----------------------------------------------------------------------------
+ecr-login:
+  stage: auth
+  image:
+    name: amazon/aws-cli:2.17.0
+    entrypoint: [""]
+  <<: *oidc_token
+  rules:
+    - changes:
+        - "apps/orders-node/**/*"
+        - "apps/users-python/**/*"
+  script:
+    - >
+      CREDS=$(aws sts assume-role-with-web-identity
+      --role-arn "$AWS_ROLE_ARN"
+      --role-session-name "gitlab-$CI_PIPELINE_ID"
+      --web-identity-token "$GITLAB_OIDC_TOKEN"
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text)
+    - export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | cut -f1)
+    - export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | cut -f2)
+    - export AWS_SESSION_TOKEN=$(echo "$CREDS" | cut -f3)
+    - aws sts get-caller-identity
+    - PASS=$(aws ecr get-login-password --region "$AWS_DEFAULT_REGION")
+    - AUTH=$(printf "AWS:%s" "$PASS" | base64 | tr -d '\n')
+    - mkdir -p docker-auth
+    - printf '{"auths":{"%s":{"auth":"%s"}}}' "$ECR_REGISTRY" "$AUTH" > docker-auth/config.json
+  artifacts:
+    paths: ["docker-auth/config.json"]
+    expire_in: 30 minutes
+
+# -----------------------------------------------------------------------------
+# BUILD STAGE - rootless image build with Kaniko, push to ECR tagged by SHA.
+# Consumes the Docker auth config produced by ecr-login (no AWS CLI needed here).
+# -----------------------------------------------------------------------------
+.build_template: &build_template
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:v1.23.2-debug
+    entrypoint: [""]
+  needs: ["ecr-login"]
+  script:
+    - mkdir -p /kaniko/.docker
+    - cp docker-auth/config.json /kaniko/.docker/config.json
+    - >
+      /kaniko/executor
+      --context "$CI_PROJECT_DIR/apps/$APP_DIR"
+      --dockerfile "$CI_PROJECT_DIR/apps/$APP_DIR/Dockerfile"
+      --destination "$ECR_REGISTRY/$APP_NAME:$IMAGE_TAG"
+
+build:orders-node:
+  <<: *build_template
+  rules:
+    - changes: ["apps/orders-node/**/*"]
+  variables:
+    APP_DIR: "orders-node"
+    APP_NAME: "orders-node"
+
+build:users-python:
+  <<: *build_template
+  rules:
+    - changes: ["apps/users-python/**/*"]
+  variables:
+    APP_DIR: "users-python"
+    APP_NAME: "users-python"
+
+# -----------------------------------------------------------------------------
+# DEPLOY STAGE (dev, automatic). Rolls the new image into the dev namespace.
+# Runs on amazon/aws-cli (has the AWS CLI); installs a static kubectl binary.
+# -----------------------------------------------------------------------------
+.deploy_template: &deploy_template
+  image:
+    name: amazon/aws-cli:2.17.0
+    entrypoint: [""]
+  <<: *oidc_token
+  before_script:
+    - >
+      CREDS=$(aws sts assume-role-with-web-identity
+      --role-arn "$AWS_ROLE_ARN"
+      --role-session-name "gitlab-$CI_PIPELINE_ID"
+      --web-identity-token "$GITLAB_OIDC_TOKEN"
+      --duration-seconds 3600
+      --query 'Credentials.[AccessKeyId,SecretAccessKey,SessionToken]'
+      --output text)
+    - export AWS_ACCESS_KEY_ID=$(echo "$CREDS" | cut -f1)
+    - export AWS_SECRET_ACCESS_KEY=$(echo "$CREDS" | cut -f2)
+    - export AWS_SESSION_TOKEN=$(echo "$CREDS" | cut -f3)
+    - aws sts get-caller-identity
+    - curl -sLO "https://dl.k8s.io/release/v1.31.0/bin/linux/amd64/kubectl"
+    - install -m 0755 kubectl /usr/local/bin/kubectl
+    - aws eks update-kubeconfig --region "$AWS_DEFAULT_REGION" --name "$EKS_CLUSTER_NAME"
+  script:
+    # Apply the hardened Kustomize manifests (namespace w/ restricted PSA,
+    # Deployments, Services, RBAC, NetworkPolicies, HPA, ALB Ingress). This is
+    # the declarative source of truth - unchanged resources are no-ops.
+    - kubectl apply -k k8s/base
+    # Roll THIS app to the exact image built this pipeline (immutable SHA tag).
+    - >
+      kubectl -n "$K8S_NAMESPACE" set image deployment/"$APP_NAME"
+      "$APP_NAME"="$ECR_REGISTRY/$APP_NAME:$IMAGE_TAG"
+    - kubectl -n "$K8S_NAMESPACE" rollout status deployment/"$APP_NAME" --timeout=180s
+
+deploy-dev:orders-node:
+  stage: deploy
+  <<: *deploy_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: ["apps/orders-node/**/*"]
+  environment:
+    name: dev
+  variables:
+    APP_NAME: "orders-node"
+    APP_PORT: "3000"
+    K8S_NAMESPACE: "dev"
+
+deploy-dev:users-python:
+  stage: deploy
+  <<: *deploy_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: ["apps/users-python/**/*"]
+  environment:
+    name: dev
+  variables:
+    APP_NAME: "users-python"
+    APP_PORT: "8000"
+    K8S_NAMESPACE: "dev"
+
+# -----------------------------------------------------------------------------
+# DEPLOY-PROD STAGE (gated). Manual click promotes the SAME image to prod.
+# -----------------------------------------------------------------------------
+deploy-prod:orders-node:
+  stage: deploy-prod
+  <<: *deploy_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: ["apps/orders-node/**/*"]
+      when: manual
+  allow_failure: false
+  environment:
+    name: prod
+  variables:
+    APP_NAME: "orders-node"
+    APP_PORT: "3000"
+    K8S_NAMESPACE: "prod"
+
+deploy-prod:users-python:
+  stage: deploy-prod
+  <<: *deploy_template
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+      changes: ["apps/users-python/**/*"]
+      when: manual
+  allow_failure: false
+  environment:
+    name: prod
+  variables:
+    APP_NAME: "users-python"
+    APP_PORT: "8000"
+    K8S_NAMESPACE: "prod"

@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# Root .gitignore for the whole DevOps project repository.
+# Protects secrets and state from ever being committed/pushed.
+# ---------------------------------------------------------------------------
+
+# Terraform state and variable files (SENSITIVE)
+*.tfstate
+*.tfstate.*
+errored.tfstate
+*.tfvars
+!*.tfvars.example
+.terraform/
+.terraform.lock.hcl
+crash.log
+*.plan
+
+# Environment / secrets
+*.env
+.env
+*.pem
+*.key
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Kube / local config
+kubeconfig
+*.kubeconfig
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Screenshots are large binaries; keep the checklists, ignore raw images if desired.
+# (Commented out by default so your evidence images ARE included. Uncomment to exclude.)
+# screenshots/**/*.png
+# screenshots/**/*.jpg

@@ -1,0 +1,117 @@
+===============================================================================
+ PHASE 3 - CI/CD PIPELINE (GITLAB CI)
+===============================================================================
+ Environment: GitLab CI -> AWS (via OIDC). This is the heart of the project.
+ Goal: Every git push builds, tests, pushes images, and deploys BOTH apps to EKS
+       automatically - with no long-lived AWS keys.
+===============================================================================
+
+WHY THIS PHASE
+--------------
+This is the "DevOps" part. Manual deploys don't scale and aren't repeatable. The
+pipeline turns a git push into a tested, deployed application automatically.
+
+
+-------------------------------------------------------------------------------
+STEP 1 - OIDC AUTH (no static keys)
+-------------------------------------------------------------------------------
+  GitLab CI authenticates to AWS using OIDC ID tokens (GitLab is the identity
+  provider; AWS IAM trusts it). No stored AWS keys.
+
+  [ ] In .gitlab-ci.yml, request an OIDC token via the "id_tokens:" keyword
+      (audience = sts.amazonaws.com).
+  [ ] Use that token with "aws sts assume-role-with-web-identity" (or the
+      configure step) to assume the Phase-2 deploy role ARN.
+  [ ] The IAM role trust policy must reference the GitLab OIDC provider and be
+      scoped to your project/branch (the "sub" claim).
+  [ ] Confirm a test job can run "aws sts get-caller-identity" successfully.
+  RESULT: zero AWS access keys stored anywhere in the repo or GitLab CI/CD vars.
+
+
+-------------------------------------------------------------------------------
+STEP 2 - PIPELINE TRIGGERS + CHANGE RULES
+-------------------------------------------------------------------------------
+  [ ] Run on commits to main and on merge requests (workflow:rules / rules).
+  [ ] Use "rules: changes:" so only the changed app rebuilds:
+        apps/orders-node/**   -> Node jobs
+        apps/users-python/**  -> Python jobs
+  [ ] A change to shared infra can rebuild both (your choice).
+
+
+-------------------------------------------------------------------------------
+STEP 3 - BUILD & TEST STAGE (per app)
+-------------------------------------------------------------------------------
+Node job (image: node:20):
+  [ ] npm ci (with GitLab cache: on node_modules / npm cache).
+  [ ] npm test (lint + unit tests).
+Python job (image: python:3.12):
+  [ ] pip install (with GitLab cache: on the pip cache dir).
+  [ ] pytest (+ a linter like ruff/flake8).
+Both:
+  [ ] If tests fail, the pipeline STOPS here (gate #1 - quality).
+
+
+-------------------------------------------------------------------------------
+STEP 4 - PACKAGE STAGE (per app)
+-------------------------------------------------------------------------------
+  [ ] Log in to ECR (via the OIDC role).
+  [ ] docker build the app image.
+  [ ] Tag with the git SHA (immutable) and optionally "latest" for dev.
+  [ ] docker push to the app's ECR repo.
+  [ ] Pass the image tag to the deploy stage (dotenv artifact / job variable).
+  NOTE: build images with Kaniko or docker:dind in GitLab CI (Kaniko is the common
+  rootless choice for building without a privileged Docker daemon).
+
+Why git SHA tags: every deploy maps to an exact commit; easy rollback.
+
+
+-------------------------------------------------------------------------------
+STEP 5 - DEPLOY STAGE (to EKS)
+-------------------------------------------------------------------------------
+  [ ] aws eks update-kubeconfig for the cluster (Phase 2 output).
+  [ ] Deploy each app with kubectl apply (or helm upgrade --install), passing the
+      new image tag.
+  [ ] Deploy to the "dev" namespace AUTOMATICALLY.
+  [ ] Secrets: the deploy pulls app secrets from Secrets Manager at deploy time -
+      nothing hardcoded.
+
+
+-------------------------------------------------------------------------------
+STEP 6 - ENVIRONMENT PROMOTION + GATING
+-------------------------------------------------------------------------------
+  [ ] Define GitLab "environments": dev (auto) and prod (gated).
+  [ ] The prod deploy job uses "when: manual" (+ optionally a protected
+      environment with approvers) so promotion needs a click.
+  [ ] This demonstrates: dev auto-deploy, prod gated deploy.
+
+
+-------------------------------------------------------------------------------
+STEP 7 - CACHING & SPEED
+-------------------------------------------------------------------------------
+  [ ] GitLab cache: for npm and pip dependencies (keyed by lockfile).
+  [ ] Optional: Docker layer caching (Kaniko cache) to speed image builds.
+
+
+-------------------------------------------------------------------------------
+STEP 8 - VERIFY THE WHOLE PIPELINE
+-------------------------------------------------------------------------------
+  [ ] Push a change to ONLY the Node app -> only the Node job runs and deploys.
+  [ ] Confirm the image appears in ECR tagged by SHA.
+  [ ] Confirm the app updates in the dev namespace (kubectl get pods).
+  [ ] Trigger a prod promotion -> confirm it waits for manual approval.
+  [ ] Confirm no AWS keys exist anywhere (OIDC only).
+
+
+===============================================================================
+ DEFINITION OF DONE - PHASE 3
+===============================================================================
+  [ ] A push changing only one app rebuilds/deploys only that app.
+  [ ] Images land in ECR tagged by git SHA.
+  [ ] Both apps auto-deploy to dev; prod requires manual approval.
+  [ ] No static AWS credentials anywhere (OIDC only).
+
+ SKILLS HIT: CI/CD stages, artifacts, caching, environment promotion, gating,
+ secrets handling, OIDC-to-cloud.
+
+ NEXT: PHASE-4.txt (harden the running Kubernetes workloads).
+===============================================================================

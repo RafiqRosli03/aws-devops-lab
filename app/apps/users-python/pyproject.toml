@@ -1,0 +1,5 @@
+[tool.pytest.ini_options]
+# Make the app package importable from tests (so `from app.main import app` works
+# in a clean CI container, not just locally). Adds this directory to sys.path.
+pythonpath = ["."]
+testpaths = ["tests"]

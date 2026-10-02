@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# users-python (App B) - hardened Deployment + ClusterIP Service + ServiceAccount
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: users-python
+  namespace: dev
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-python
+  namespace: dev
+  labels:
+    app: users-python
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: users-python
+  template:
+    metadata:
+      labels:
+        app: users-python
+    spec:
+      serviceAccountName: users-python
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: users-python
+          image: 497862079645.dkr.ecr.ap-southeast-5.amazonaws.com/users-python:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PORT
+              value: "8000"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "80Mi"
+            limits:
+              cpu: "250m"
+              memory: "160Mi"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-python
+  namespace: dev
+  labels:
+    app: users-python
+spec:
+  type: ClusterIP
+  selector:
+    app: users-python
+  ports:
+    - port: 80
+      targetPort: 8000

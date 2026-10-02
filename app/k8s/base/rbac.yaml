@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------------
+# RBAC (Task #3) - least privilege. These apps don't call the Kubernetes API,
+# so their ServiceAccounts get a Role with NO rules. No workload uses
+# cluster-admin. If an app ever needs an API verb, add it here explicitly.
+# ---------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: orders-node
+  namespace: dev
+rules: [] # no permissions - app needs none
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: orders-node
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: orders-node
+subjects:
+  - kind: ServiceAccount
+    name: orders-node
+    namespace: dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: users-python
+  namespace: dev
+rules: []
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: users-python
+  namespace: dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: users-python
+subjects:
+  - kind: ServiceAccount
+    name: users-python
+    namespace: dev

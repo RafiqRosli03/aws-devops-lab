@@ -1,0 +1,128 @@
+===============================================================================
+ PHASE 2 - INFRASTRUCTURE AS CODE (TERRAFORM)
+===============================================================================
+ Environment: AWS. Costs money while running (EKS/NAT/ALB). Tear down when idle.
+ Goal: Stand up the ENTIRE AWS environment from Terraform. No click-ops.
+===============================================================================
+
+WHY THIS PHASE
+--------------
+The pipeline (Phase 3) needs somewhere to push images and deploy to. We build that
+"somewhere" as code so it is repeatable, reviewable, and destroyable in one command.
+
+
+-------------------------------------------------------------------------------
+STEP 1 - TERRAFORM PROJECT STRUCTURE
+-------------------------------------------------------------------------------
+  infra/
+    modules/
+      network/          (VPC, subnets, IGW, NAT, route tables)
+      ecr/              (one repo per app)
+      eks/              (control plane + managed node group)
+      iam-oidc/         (GitLab OIDC provider + deploy role)
+      security/         (KMS key, Secrets Manager secrets)
+    envs/
+      dev/
+        main.tf         (calls the modules)
+        variables.tf
+        outputs.tf
+        dev.tfvars
+        backend.tf      (remote state config)
+
+Principle: modules are reusable building blocks; envs/dev wires them together.
+
+
+-------------------------------------------------------------------------------
+STEP 2 - REMOTE STATE (do this FIRST)
+-------------------------------------------------------------------------------
+Terraform state must live remotely and be locked so it is safe and shareable.
+
+  [ ] Create an S3 bucket for state (versioning ON).
+  [ ] Create a DynamoDB table for state locking.
+  [ ] Configure backend.tf to use them.
+  [ ] terraform init  (confirms the backend works).
+
+Note: the state bucket/table can be created by a tiny bootstrap Terraform or by CLI
+once; everything else is managed by the main config.
+
+
+-------------------------------------------------------------------------------
+STEP 3 - NETWORK MODULE
+-------------------------------------------------------------------------------
+  [ ] VPC 10.0.0.0/16.
+  [ ] 2 public subnets (AZ-a, AZ-b)  -> for ALB + NAT.
+  [ ] 2 private subnets (AZ-a, AZ-b) -> for EKS worker nodes.
+  [ ] Internet Gateway on the VPC.
+  [ ] NAT Gateway in a public subnet (egress for private nodes).
+  [ ] Route tables: public -> IGW, private -> NAT.
+  [ ] Tag subnets for EKS/ELB discovery (kubernetes.io/role/elb etc.).
+
+
+-------------------------------------------------------------------------------
+STEP 4 - ECR MODULE
+-------------------------------------------------------------------------------
+  [ ] Repo "orders-node".
+  [ ] Repo "users-python".
+  [ ] Enable image scanning on push (free basic scan).
+  [ ] Lifecycle policy to expire old untagged images (cost hygiene).
+  [ ] Output the repo URIs (Phase 3 needs them).
+
+
+-------------------------------------------------------------------------------
+STEP 5 - EKS MODULE
+-------------------------------------------------------------------------------
+  [ ] EKS control plane (managed) in the VPC.
+  [ ] Managed node group in the PRIVATE subnets (e.g. 2x t3.small/medium).
+  [ ] Node group autoscaling min/desired/max (e.g. 2/2/4).
+  [ ] OIDC provider for the cluster (needed for IRSA - pod-level IAM later).
+  [ ] Cluster add-ons: VPC CNI, CoreDNS, kube-proxy.
+  [ ] Output cluster name + endpoint (Phase 3 + kubectl need them).
+
+Tip: the community terraform-aws-modules/eks module saves a lot of time here.
+
+
+-------------------------------------------------------------------------------
+STEP 6 - IAM / OIDC MODULE (for GitLab CI)
+-------------------------------------------------------------------------------
+This is what lets the pipeline authenticate to AWS WITHOUT static keys.
+
+  [ ] Create the GitLab OIDC identity provider in IAM (issuer = your GitLab URL,
+      e.g. https://gitlab.com).
+  [ ] Create a deploy role that trusts the GitLab OIDC provider, scoped to YOUR
+      project (and optionally a branch/environment) via the "sub" condition.
+  [ ] Attach least-privilege policies: push to ECR, describe/update EKS, read the
+      needed Secrets Manager secrets.
+  [ ] Output the role ARN (Phase 3 workflow uses it).
+
+
+-------------------------------------------------------------------------------
+STEP 7 - SECURITY MODULE (KMS + SECRETS MANAGER)
+-------------------------------------------------------------------------------
+  [ ] KMS key (used to encrypt secrets / logs).
+  [ ] A couple of placeholder secrets in Secrets Manager (e.g. app config).
+  [ ] Restrict who can decrypt (the deploy role / app IRSA role only).
+
+
+-------------------------------------------------------------------------------
+STEP 8 - APPLY, VERIFY, DESTROY-TEST
+-------------------------------------------------------------------------------
+  [ ] terraform plan  (review what will be created).
+  [ ] terraform apply (build everything).
+  [ ] aws eks update-kubeconfig ...   then   kubectl get nodes  -> nodes Ready.
+  [ ] Confirm ECR repos exist, role ARN output present.
+  [ ] terraform destroy  (prove clean teardown) - then apply again for Phase 3.
+
+
+===============================================================================
+ DEFINITION OF DONE - PHASE 2
+===============================================================================
+  [ ] terraform apply builds VPC + ECR + EKS + IAM/OIDC + KMS + Secrets cleanly.
+  [ ] terraform destroy removes everything with no orphaned resources.
+  [ ] kubectl get nodes shows EKS workers Ready.
+  [ ] Outputs give ECR URIs, cluster name, and the deploy role ARN.
+
+ SKILLS HIT: Terraform (modules, remote state, apply/destroy), AWS VPC/networking,
+ EKS, IAM/OIDC, KMS, ECR - all as code.
+
+ NEXT: PHASE-3.txt (the pipeline that fills this environment automatically).
+===============================================================================

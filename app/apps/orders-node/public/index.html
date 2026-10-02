@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>App A · Node.js + Express</title>
+  <style>
+    :root {
+      --green: #539e43;
+      --green-dark: #3c7a32;
+      --ink: #1b1b1f;
+      --muted: #5c5c66;
+      --bg: #f4f7f4;
+      --card: #ffffff;
+      --border: #e3e8e3;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+    .hero {
+      background: linear-gradient(135deg, #539e43 0%, #3c7a32 100%);
+      color: #fff;
+      padding: 56px 24px 64px;
+      text-align: center;
+    }
+    .hero img { width: 110px; height: auto; margin-bottom: 18px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.25)); }
+    .hero h1 { font-size: 2.4rem; margin-bottom: 8px; }
+    .hero p { font-size: 1.1rem; opacity: .95; max-width: 620px; margin: 0 auto; }
+    .badge {
+      display: inline-block; background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+      padding: 4px 14px; border-radius: 999px; font-size: .85rem; margin-top: 16px; letter-spacing: .3px;
+    }
+    .wrap { max-width: 960px; margin: -36px auto 0; padding: 0 24px 64px; }
+    .card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+      padding: 28px; margin-bottom: 22px; box-shadow: 0 6px 20px rgba(0,0,0,.05);
+    }
+    .card h2 { color: var(--green-dark); font-size: 1.35rem; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; }
+    .card h2 .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--green); display: inline-block; }
+    .card p { color: var(--muted); margin-bottom: 10px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 8px; }
+    .feature { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .feature h3 { font-size: 1rem; margin-bottom: 6px; color: var(--ink); }
+    .feature p { font-size: .9rem; margin: 0; }
+    .feature .emoji { font-size: 1.6rem; }
+    code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; }
+    .endpoints li { list-style: none; padding: 10px 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 8px; background: var(--bg); }
+    .method { font-weight: 700; color: #fff; padding: 2px 8px; border-radius: 6px; font-size: .78rem; margin-right: 8px; }
+    .get { background: #2d7d46; } .post { background: #b8791b; }
+    .demo button {
+      background: var(--green); color: #fff; border: none; padding: 10px 18px; border-radius: 8px;
+      font-size: .95rem; cursor: pointer; transition: background .15s;
+    }
+    .demo button:hover { background: var(--green-dark); }
+    .demo pre {
+      background: #0f1c0d; color: #b6f0a8; padding: 16px; border-radius: 10px; margin-top: 14px;
+      overflow-x: auto; font-size: .88rem; min-height: 48px;
+    }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    input {
+      padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: .92rem;
+    }
+    footer { text-align: center; color: var(--muted); font-size: .85rem; padding: 24px; }
+    .tag { display:inline-block; background:#eaf3e8; color:var(--green-dark); border-radius:6px; padding:2px 8px; font-size:.8rem; margin-left:6px;}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <img src="https://nodejs.org/static/logos/nodejsLight.svg" alt="Node.js logo" />
+    <h1>App A — Node.js + Express</h1>
+    <p>The "orders" microservice in our DevOps lab. This page explains what Node.js is and lets you try the live API below.</p>
+    <div class="badge">Service A · Port 3000 · REST API + GUI</div>
+  </header>
+
+  <main class="wrap">
+    <section class="card">
+      <h2><span class="dot"></span> What is Node.js?</h2>
+      <p><strong>Node.js</strong> is a runtime that lets you run <strong>JavaScript on the server</strong> — outside the browser. Before Node, JavaScript only ran inside web pages. Node took Google Chrome's fast V8 engine and let it power backend servers, tools, and APIs.</p>
+      <p>It is famous for being <strong>event-driven and non-blocking</strong>: instead of waiting for one task to finish before starting the next, it juggles many requests at once. That makes it excellent for APIs and real-time apps that handle lots of connections.</p>
+      <div class="grid">
+        <div class="feature"><div class="emoji">⚡</div><h3>Fast &amp; async</h3><p>Non-blocking I/O handles many requests without waiting.</p></div>
+        <div class="feature"><div class="emoji">📦</div><h3>Huge ecosystem</h3><p>npm is the largest package registry in the world.</p></div>
+        <div class="feature"><div class="emoji">🟨</div><h3>One language</h3><p>JavaScript on both the front-end and back-end.</p></div>
+        <div class="feature"><div class="emoji">🌐</div><h3>Great for APIs</h3><p>Powers services at Netflix, PayPal, LinkedIn, and more.</p></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span> What is Express? <span class="tag">the framework</span></h2>
+      <p><strong>Express</strong> is the most popular web framework for Node.js. Node gives you the engine; Express gives you a clean, simple way to define <em>routes</em> (like <code>GET /orders</code>) and handle requests and responses. This app uses Express to expose the orders API you can try below.</p>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot"></span> API Endpoints</h2>
+      <ul class="endpoints">
+        <li><span class="method get">GET</span><span class="mono">/health</span> — service health check</li>
+        <li><span class="method get">GET</span><span class="mono">/orders</span> — list all orders</li>
+        <li><span class="method post">POST</span><span class="mono">/orders</span> — create a new order</li>
+      </ul>
+    </section>
+
+    <section class="card demo">
+      <h2><span class="dot"></span> Live demo — try the API</h2>
+      <p>These buttons call this running service. No page reload — it's the real API responding.</p>
+      <div class="row" style="margin-bottom:12px;">
+        <button onclick="getOrders()">GET /orders</button>
+        <input id="item" placeholder="item (e.g. mouse)" />
+        <input id="qty" type="number" placeholder="qty" style="width:90px;" />
+        <button onclick="addOrder()">POST /orders</button>
+      </div>
+      <pre id="out">Click a button to see the response…</pre>
+    </section>
+  </main>
+
+  <footer>
+    DevOps Lab · App A (Node.js + Express) · runs in a container, deployed to EKS via GitLab CI + Terraform
+  </footer>
+
+  <script>
+    const out = document.getElementById("out");
+    async function getOrders() {
+      out.textContent = "Loading…";
+      const r = await fetch("/orders");
+      out.textContent = JSON.stringify(await r.json(), null, 2);
+    }
+    async function addOrder() {
+      const item = document.getElementById("item").value;
+      const qty = parseInt(document.getElementById("qty").value, 10);
+      out.textContent = "Sending…";
+      const r = await fetch("/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ item, qty })
+      });
+      out.textContent = "HTTP " + r.status + "\n" + JSON.stringify(await r.json(), null, 2);
+    }
+  </script>
+</body>
+</html>

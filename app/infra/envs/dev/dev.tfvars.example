@@ -1,0 +1,10 @@
+# Copy to dev.tfvars and fill in. dev.tfvars is gitignored (may hold specifics).
+# Most values already have sensible defaults in variables.tf.
+
+# Your GitLab group/project path (REQUIRED for the OIDC deploy role to scope correctly).
+gitlab_project_path = "your-group/devops-lab"
+
+# Optional overrides:
+# node_instance_types = ["t3.small"]
+# node_desired        = 2
+# node_max            = 4

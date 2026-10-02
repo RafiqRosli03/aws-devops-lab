@@ -1,0 +1,20 @@
+# Kustomize base - all hardened Phase 4 manifests. The pipeline overrides the
+# image tags per deploy with `kustomize edit set image`.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - orders-node.yaml
+  - users-python.yaml
+  - rbac.yaml
+  - networkpolicy.yaml
+  - hpa.yaml
+  - ingress.yaml
+
+images:
+  # Default tag; the pipeline overrides this per-deploy with the git SHA.
+  - name: 497862079645.dkr.ecr.ap-southeast-5.amazonaws.com/orders-node
+    newTag: "04c1edad"
+  - name: 497862079645.dkr.ecr.ap-southeast-5.amazonaws.com/users-python
+    newTag: "04c1edad"
