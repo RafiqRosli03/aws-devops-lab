@@ -55,6 +55,121 @@ CloudWatch + GuardDuty + Security Hub watch the account
 
 ---
 
+## Low-level flow (what actually happens, step by step)
+
+The high-level flow above is the story in one breath. This section unpacks it into the
+exact steps — useful if you want to understand *how* a `git push` becomes a running,
+hardened app, and *how* a user's request reaches it. There are two journeys: the
+**delivery flow** (code → running pod) and the **request flow** (user → response).
+
+### A. Delivery flow — from `git push` to a live pod
+
+```
+┌─ 1. DEVELOPER ────────────────────────────────────────────────────────────┐
+│  git push to the GitLab project (main branch or a merge request).          │
+│  GitLab reads .gitlab-ci.yml and decides which jobs run using path rules:  │
+│     apps/**  changed  ->  application pipeline (below)                      │
+│     infra/** changed  ->  Terraform pipeline (validate -> plan -> apply)    │
+└────────────────────────────────────────────────────────────────────────────┘
+                                   |
+                                   v
+┌─ 2. TEST (gate #1 — quality) ──────────────────────────────────────────────┐
+│  Only the changed app runs:                                                 │
+│    orders-node  ->  npm ci + npm test   (Node test runner)                  │
+│    users-python ->  pip install + pytest                                    │
+│  If a test fails, the pipeline STOPS here. No image is ever built.          │
+└────────────────────────────────────────────────────────────────────────────┘
+                                   |
+                                   v
+┌─ 3. AUTHENTICATE to AWS (no static keys) ──────────────────────────────────┐
+│  GitLab mints a short-lived OIDC ID token (audience sts.amazonaws.com).     │
+│  The ecr-login job runs on an image that HAS the AWS CLI and calls          │
+│    aws sts assume-role-with-web-identity  -> devops-lab-dev-gitlab-deploy   │
+│  AWS checks the token's "sub" claim is this exact GitLab project, then      │
+│  returns temporary credentials that expire when the job ends.               │
+│  It fetches an ECR login token and hands it to the build job as a           │
+│  short-lived Docker-auth artifact.                                          │
+└────────────────────────────────────────────────────────────────────────────┘
+                                   |
+                                   v
+┌─ 4. BUILD + PUSH the image ────────────────────────────────────────────────┐
+│  Kaniko builds the Docker image WITHOUT a privileged Docker daemon          │
+│  (rootless, safe for CI). It reads the multi-stage Dockerfile:              │
+│     stage 1: install deps + run tests   stage 2: slim, non-root runtime     │
+│  The image is tagged with the git SHA (immutable) and pushed to ECR:        │
+│     497862079645.dkr.ecr.ap-southeast-5.amazonaws.com/orders-node:<SHA>     │
+│  Immutable SHA tags mean every deploy maps to an exact commit = easy rollback│
+└────────────────────────────────────────────────────────────────────────────┘
+                                   |
+                                   v
+┌─ 5. DEPLOY to EKS (dev namespace, automatic) ──────────────────────────────┐
+│  The deploy job assumes the deploy role again, downloads kubectl, and runs  │
+│     aws eks update-kubeconfig --name devops-lab-dev                         │
+│  Two authorization doors must both open:                                    │
+│     (1) AWS IAM — may this role talk to EKS?                                │
+│     (2) EKS access entry — may this identity act INSIDE the cluster?        │
+│  It applies k8s/base with Kustomize, then sets the Deployment's image to    │
+│  the new SHA and runs:                                                       │
+│     kubectl rollout status ... --timeout=180s                               │
+│  A green job is NOT enough — rollout status waits until the NEW pods are    │
+│  actually Ready before the job passes.                                       │
+└────────────────────────────────────────────────────────────────────────────┘
+                                   |
+                                   v
+┌─ 6. PROMOTE to prod (gate #2 — manual) ────────────────────────────────────┐
+│  The prod job is "when: manual" — it waits for a human to click. The SAME   │
+│  tested SHA image is promoted (never rebuilt), so prod runs exactly what    │
+│  dev validated.                                                              │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+### B. Request flow — from a user's browser to a response
+
+```
+Internet user requests  http://<ALB-DNS>/orders
+      |
+      v
+(1) ALB (Application Load Balancer) receives it in a PUBLIC subnet.
+      |   The ALB was created by the AWS Load Balancer Controller reading the
+      |   Kubernetes Ingress (IRSA-scoped, least-privilege IAM — not node-wide).
+      v
+(2) Ingress path rules route the request:
+        /orders*  ->  orders-node Service        /users*  ->  users-python Service
+      |
+      v
+(3) Service (ClusterIP) load-balances to a healthy Pod on an EKS worker node
+      |   in a PRIVATE subnet. Only pods passing the readiness probe get traffic.
+      v
+(4) Pod runs the container: non-root, read-only root FS, all Linux caps dropped,
+      |   seccomp RuntimeDefault. A NetworkPolicy default-denies everything except
+      |   the traffic explicitly allowed (DNS + the app port).
+      v
+(5) The app (Express or FastAPI) handles the request and returns JSON.
+      |
+      v
+(6) Response travels back out through the ALB to the user.
+            Meanwhile: logs (stdout) + metrics stream to CloudWatch.
+```
+
+### What keeps it healthy and safe (always running in the background)
+
+| Concern | Mechanism | What it does |
+|---------|-----------|--------------|
+| Pod crashes | Deployment (replicas ≥ 2) | Kubernetes recreates the pod automatically |
+| Pod alive but not ready | Readiness probe on `/health` | Pulls the pod out of Service traffic until healthy |
+| Pod hung | Liveness probe on `/health` | Restarts the container |
+| Traffic spike | HPA (2–5 pods, ~60% CPU target) | Scales pods up, then back down when idle |
+| Bad deploy | Immutable SHA tags | Redeploy a known-good previous SHA to roll back |
+| 5xx errors | CloudWatch alarm → SNS | ALB 5xx breaches threshold → email notification |
+| Root/unsafe pod | Pod Security Admission (`restricted`) | Rejects the pod at admission time |
+| Unexpected traffic | NetworkPolicy (default-deny) | Blocks anything not explicitly allowed |
+| Account threats | GuardDuty + Security Hub | Detect suspicious activity, aggregate findings |
+
+> For an even gentler, analogy-driven walkthrough of all of this, see
+> [`planning/04-beginner-end-to-end-explanation.md`](planning/04-beginner-end-to-end-explanation.md).
+
+---
+
 ## Repository layout
 
 ```
