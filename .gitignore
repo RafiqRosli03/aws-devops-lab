@@ -44,3 +44,8 @@ Thumbs.db
 # (Commented out by default so your evidence images ARE included. Uncomment to exclude.)
 # screenshots/**/*.png
 # screenshots/**/*.jpg
+
+# Terraform command output logs saved as scratch (contain account IDs/ARNs)
+destroy*.txt
+plan*.txt
+apply*.txt
