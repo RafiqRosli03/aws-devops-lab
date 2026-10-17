@@ -10,6 +10,12 @@ wiring around them.
 
 > Status: work in progress. Built phase by phase; each phase is demonstrable on its own.
 
+## Architecture
+
+![High-level architecture: developer pushes to GitLab CI, which authenticates to AWS via OIDC, builds and pushes images to ECR, and deploys to an EKS cluster inside a VPC with public and private subnets. Terraform provisions all infrastructure. CloudWatch, GuardDuty, and Security Hub provide observability and security.](planning/architecture.png)
+
+The full editable source is [`planning/03-hld-architecture.drawio`](planning/03-hld-architecture.drawio) (open with [draw.io](https://draw.io)).
+
 ---
 
 ## The two applications
