@@ -170,6 +170,60 @@ Internet user requests  http://<ALB-DNS>/orders
 
 ---
 
+## Phase-by-phase architecture
+
+The high-level diagram above shows the whole system. These five diagrams zoom into
+each phase so you can see exactly what gets built and how each phase hands off to the
+next. Each links to its detailed plan.
+
+### Phase 1 — Applications + Docker (local, zero cost)
+
+Both microservices are built and containerized with multi-stage, non-root Dockerfiles,
+then run together locally with Docker Compose. No AWS yet.
+
+![Phase 1 architecture: developer laptop runs orders-node (Express) and users-python (FastAPI) via docker-compose; the resulting non-root images are what later phases push to ECR.](planning/architecture-phase-1.png)
+
+→ [`planning/05-PHASE-1.md`](planning/05-PHASE-1.md)
+
+### Phase 2 — Infrastructure as Code (Terraform)
+
+Terraform builds the entire AWS environment — VPC, ECR, EKS, IAM/OIDC, KMS, Secrets
+Manager — and its outputs (ECR URIs, cluster name, deploy-role ARN) feed the pipeline.
+
+![Phase 2 architecture: Terraform applies to create the AWS Cloud environment containing IAM OIDC, ECR, KMS, Secrets Manager, and a VPC with the EKS control plane and managed node group.](planning/architecture-phase-2.png)
+
+→ [`planning/06-PHASE-2.md`](planning/06-PHASE-2.md)
+
+### Phase 3 — CI/CD pipeline (GitLab CI)
+
+Every push is tested, authenticated to AWS via OIDC, built with Kaniko, tagged by git
+SHA, pushed to ECR, and deployed to EKS — dev automatically, prod behind a manual gate.
+
+![Phase 3 architecture: a git push triggers the GitLab CI pipeline (lint/test, build, OIDC auth, push to ECR, deploy to EKS) with a manual approval gate before prod.](planning/architecture-phase-3.png)
+
+→ [`planning/08-PHASE-3.md`](planning/08-PHASE-3.md)
+
+### Phase 4 — Kubernetes hardening
+
+The running workloads are hardened: a single ALB Ingress with path routing, non-root
+read-only pods, RBAC, default-deny NetworkPolicies, HPA, and secrets pulled from
+Secrets Manager via the CSI driver (no plaintext Kubernetes secrets).
+
+![Phase 4 architecture: an ALB Ingress routes /orders and /users to hardened Deployments inside a restricted EKS namespace, with secrets mounted from AWS Secrets Manager through the CSI driver.](planning/architecture-phase-4.png)
+
+→ [`planning/09-PHASE-4.md`](planning/09-PHASE-4.md)
+
+### Phase 5 — Observability & cloud security posture
+
+Everything running emits logs and metrics to CloudWatch; an alarm notifies via SNS, and
+GuardDuty + Security Hub provide account-wide security posture.
+
+![Phase 5 architecture: the EKS cluster sends logs and metrics to CloudWatch, which triggers an alarm to SNS email; GuardDuty and Security Hub aggregate account-wide security findings.](planning/architecture-phase-5.png)
+
+→ [`planning/10-PHASE-5.md`](planning/10-PHASE-5.md)
+
+---
+
 ## Repository layout
 
 ```
