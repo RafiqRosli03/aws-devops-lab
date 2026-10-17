@@ -2,6 +2,8 @@
 
 Copy your best screenshots here after capturing all raw evidence.
 
+> Status: nothing copied here yet — all items below are pending (do this last).
+
 - [ ] `PORT-01-architecture.png`
 - [ ] `PORT-02-monorepo-structure.png`
 - [ ] `PORT-03-apps-through-single-alb.png`

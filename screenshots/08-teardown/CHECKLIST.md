@@ -2,6 +2,8 @@
 
 Capture only after all live evidence is complete.
 
+> Status: no screenshots captured in this folder yet — all items below are pending.
+
 - [ ] `TD-01-k8s-resources-deleted.png` — Ingress/workloads removed.
 - [ ] `TD-02-alb-deleted.png` — no remaining ALBs.
 - [ ] `TD-03-terraform-destroy-complete.png` — final destroy summary.

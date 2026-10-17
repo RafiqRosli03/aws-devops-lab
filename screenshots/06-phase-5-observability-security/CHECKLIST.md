@@ -1,5 +1,7 @@
 # 06 — Phase 5: Observability and Security
 
+> Status: no screenshots captured in this folder yet — all items below are pending.
+
 - [ ] `P5-01-cloudwatch-addon-active.png` — EKS CloudWatch observability add-on Active.
 - [ ] `P5-02-cloudwatch-agent-pods.png` — controller/agents Running.
 - [ ] `P5-03-container-insights-log-groups.png` — application/dataplane/host/performance groups.

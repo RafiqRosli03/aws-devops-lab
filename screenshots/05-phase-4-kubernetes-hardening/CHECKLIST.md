@@ -1,5 +1,7 @@
 # 05 — Phase 4: Kubernetes Hardening
 
+> Status: no screenshots captured in this folder yet — all items below are pending.
+
 - [ ] `P4-01-deployments-pods-services-ready.png` — 2/2 Deployments, Ready pods, ClusterIP Services.
 - [ ] `P4-02-single-alb-ingress.png` — one Ingress with public ALB address.
 - [ ] `P4-03-orders-users-same-alb.png` — `/orders` and `/users` using the same ALB DNS.
