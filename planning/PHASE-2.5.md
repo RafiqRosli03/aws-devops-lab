@@ -1,0 +1,96 @@
+# Phase 2.5 — Separate Terraform CI/CD Pipeline
+
+> **Environment:** GitLab CI → AWS (via OIDC). Infrastructure changes only.
+> **Goal:** Manage the Phase-2 infrastructure **through a pipeline** — not from a
+> laptop — so every infra change is validated, planned, reviewed, and gated.
+
+## Why this phase
+
+Phase 2 builds the infrastructure; running Terraform by hand from a laptop doesn't
+scale and isn't auditable. Phase 2.5 puts Terraform behind the same OIDC pipeline
+model as the apps — but on its **own** path and its **own** role, because
+infrastructure changes are more powerful and more dangerous than application changes.
+
+This sits between Phase 2 (infra exists) and Phase 3 (app pipeline) because it reuses
+the Phase-2 OIDC foundation and establishes the "plan → review → apply" discipline
+the app pipeline then mirrors.
+
+## Step 1 — Two pipelines, one file, separated by path
+
+The project uses a single `.gitlab-ci.yml` with two independent flows chosen by path
+rules:
+
+```text
+infra/** changed  ->  tf-validate -> tf-plan -> tf-apply (manual gate)
+apps/**  changed  ->  test -> auth -> build -> deploy -> deploy-prod
+```
+
+- [ ] `rules: changes: infra/**` triggers **only** the Terraform jobs.
+- [ ] A change under `apps/**` must **not** trigger a Terraform apply, and vice versa.
+
+## Step 2 — Separate, more-powerful OIDC role
+
+Infrastructure uses its own role, distinct from the app-deploy role:
+
+| Pipeline | Role | Scope |
+|----------|------|-------|
+| App | `devops-lab-dev-gitlab-deploy` | narrow: ECR + EKS deploy |
+| Infra | `devops-lab-dev-gitlab-terraform` | broad: manages infra |
+
+- [ ] The Terraform role is assumed via GitLab OIDC (no static keys), same as apps.
+- [ ] Its trust policy is scoped to the GitLab project (`sub` claim).
+- [ ] Keep the two roles separate so a compromised app job can't rewrite infra.
+
+## Step 3 — Validate stage (`tf-validate`)
+
+- [ ] `terraform fmt -check` (formatting is consistent).
+- [ ] `terraform init` (connect to the remote S3 backend).
+- [ ] `terraform validate` (configuration is structurally valid).
+
+Catches syntax and reference errors **before** anything touches AWS.
+
+## Step 4 — Plan stage (`tf-plan`)
+
+Terraform compares three things — the code (desired), the remote state (what
+Terraform remembers), and AWS (what actually exists) — then proposes a plan:
+
+```text
+Plan: 2 to add, 1 to change, 0 to destroy
+```
+
+- [ ] Produce a saved plan file.
+- [ ] Pass it to the apply stage as a **short-lived** artifact.
+- [ ] A human reviews it — especially any resource marked destroy/replace.
+
+## Step 5 — Apply stage (`tf-apply`) — manual gate
+
+- [ ] `tf-apply` is `when: manual` — it waits for a person to click.
+- [ ] It applies the **exact** saved plan artifact (not a fresh, possibly-drifted plan).
+- [ ] Only after approval does AWS change.
+
+Infrastructure always gets a manual gate: one mistake can affect networking, IAM,
+EKS, or the whole environment.
+
+## Step 6 — Verify
+
+- [ ] A change under `infra/**` triggers **only** `tf-validate` → `tf-plan`.
+- [ ] `tf-apply` does not run until manually approved.
+- [ ] An `apps/**` change does **not** run any Terraform job.
+- [ ] No static AWS credentials anywhere (OIDC only), using the terraform role.
+
+## Definition of done — Phase 2.5
+
+- [ ] Terraform runs through GitLab CI, not a laptop.
+- [ ] `infra/**` changes run validate + plan automatically; apply is manually gated.
+- [ ] Infra uses its own OIDC role, separate from the app-deploy role.
+- [ ] The applied plan is the reviewed plan (plan artifact handed to apply).
+
+**Skills hit:** GitOps for infrastructure, plan/apply separation, manual approval
+gates, least-privilege role separation, OIDC-to-cloud for Terraform.
+
+> **Known limitation (from the honest review):** `dev.tfvars` is gitignored and
+> therefore not present in CI, so all required Terraform variables must be supplied
+> to the pipeline another way (CI/CD variables or a committed non-secret tfvars) for
+> the infra pipeline to plan/apply correctly.
+
+**Next:** [PHASE-3.md](PHASE-3.md) — the application pipeline, which reuses this OIDC model.

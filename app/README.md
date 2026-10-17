@@ -49,4 +49,4 @@ pytest
 
 ## Next
 Phase 2 (Terraform) creates ECR repos `orders-node` and `users-python` and the EKS
-cluster these images deploy to. See `../planning/PHASE-2.txt`.
+cluster these images deploy to. See `../planning/PHASE-2.md`.
