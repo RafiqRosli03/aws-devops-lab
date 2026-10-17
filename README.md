@@ -26,7 +26,7 @@ wiring around them.
 | Orchestrator | Amazon EKS (Kubernetes) |
 | CI/CD | GitLab CI (OIDC to AWS — no static keys) |
 | Registry | Amazon ECR (one repo per app) |
-| IaC | Terraform (remote state in S3 + DynamoDB lock) |
+| IaC | Terraform (remote state in S3, native state locking) |
 | Region | ap-southeast-5 |
 | Extras | KMS, Secrets Manager, CloudWatch, GuardDuty, Security Hub |
 
@@ -79,9 +79,13 @@ CloudWatch + GuardDuty + Security Hub watch the account
 |-------|-------|---------|
 | 1 | Apps + Docker | Both apps containerized (multi-stage, non-root), run locally with `docker compose` |
 | 2 | Terraform / IaC | VPC, ECR, EKS, IAM/OIDC, KMS, Secrets Manager — all from code |
-| 3 | CI/CD (GitLab) | Every push builds, tests, pushes to ECR, deploys to EKS; dev→prod gate |
+| 2.5 | Terraform pipeline | Terraform itself behind GitLab CI: validate → plan → gated apply, on its own OIDC role |
+| 3 | App CI/CD (GitLab) | Every push builds, tests, pushes to ECR, deploys to EKS; dev→prod gate |
 | 4 | Kubernetes hardening | RBAC, network policies, non-root pods, secrets, HPA, ALB Ingress |
 | 5 | Observability & posture | CloudWatch logs/metrics/alarm, GuardDuty + Security Hub |
+
+> Code is hosted on **GitHub** (portfolio mirror) and the CI/CD pipeline targets
+> **GitLab CI** (OIDC to AWS). See `planning/00-MASTER-PLAN.txt` for why both.
 
 Full detail for each phase lives in `planning/` and the build notes in `app/docs/`.
 

@@ -26,9 +26,31 @@ TECH STACK / DEFAULTS (change if needed)
   Orchestrator ...... Amazon EKS (real Kubernetes)
   CI/CD ............. GitLab CI (OIDC to AWS, no static keys)
   Registry .......... Amazon ECR (one repo per app)
-  IaC ............... Terraform (remote state in S3 + DynamoDB lock)
+  IaC ............... Terraform (remote state in S3 + native S3 lock)
   Region ............ ap-southeast-5
   Extras ............ KMS, Secrets Manager, CloudWatch, GuardDuty, Security Hub
+
+
+CODE HOSTING vs CI/CD - READ THIS (avoids confusion)
+----------------------------------------------------
+  Two different "git" platforms appear in this project, on purpose:
+
+    - GitHub  -> where this repository is published as a PORTFOLIO mirror
+                 (github.com/RafiqRosli03/aws-devops-lab). Browse the code here.
+    - GitLab  -> the CI/CD ENGINE the pipeline is written for. The .gitlab-ci.yml,
+                 OIDC trust, and runners are GitLab-specific. To actually RUN the
+                 pipeline, the repo is pushed to a GitLab project and GitLab's
+                 OIDC provider is trusted by AWS IAM (see Phase 3).
+
+  Why both: GitLab CI was chosen to learn industry-standard, self-contained YAML
+  pipelines with OIDC-to-AWS. GitHub is used as the public showcase. They are not
+  in conflict - one hosts/shows the code, the other runs the delivery pipeline.
+  Everywhere these docs say "git push triggers the pipeline", that push is to the
+  GitLab project.
+
+  NOTE on remote state locking: the current implementation uses S3 native state
+  locking (no separate DynamoDB table). Older notes that mention a DynamoDB lock
+  table describe the classic approach; the native S3 lock is the newer equivalent.
 
 
 HIGH-LEVEL FLOW
@@ -126,15 +148,24 @@ COST REMINDER (IMPORTANT)
   main constraint - but you lose raw Kubernetes practice (a listed roadmap skill).
 
 
-REFERENCE FILES IN THIS FOLDER
-------------------------------
-  00-MASTER-PLAN.txt ........ this file (high-level overview)
-  PHASE-1.txt ............... detailed plan - apps + Docker
-  PHASE-2.txt ............... detailed plan - Terraform / IaC
-  PHASE-3.txt ............... detailed plan - CI/CD pipeline
-  PHASE-4.txt ............... detailed plan - Kubernetes hardening
-  PHASE-5.txt ............... detailed plan - observability + posture
-  00-project-plan.md ........ original planning notes
-  02-phase-plan.md .......... markdown version of the phase plan
-  01-hld-architecture.drawio  high-level design diagram (AWS icons)
+REFERENCE FILES
+---------------
+  Planning docs (this planning/ folder):
+    00-MASTER-PLAN.txt ........ this file (high-level overview)
+    PHASE-1.txt ............... detailed plan - apps + Docker
+    PHASE-2.txt ............... detailed plan - Terraform / IaC
+    PHASE-2.5.txt ............. detailed plan - separate Terraform CI/CD pipeline
+    PHASE-3.txt ............... detailed plan - app CI/CD pipeline
+    PHASE-4.txt ............... detailed plan - Kubernetes hardening
+    PHASE-5.txt ............... detailed plan - observability + posture
+    00-project-plan.md ........ original planning notes + locked decisions
+    02-phase-plan.md .......... markdown version of the phase plan
+    01-hld-architecture.drawio  high-level design diagram (AWS icons)
+    AWS-DEVOPS-LAB-BEGINNER-END-TO-END-EXPLANATION.md  plain-language walkthrough
+
+  Implementation + build notes (../app/):
+    ../README.md ............. repo front page (quick start, layout)
+    ../app/README.md ......... application monorepo guide
+    ../app/DOCUMENTATION.md .. full implementation record (live resource IDs)
+    ../app/docs/ ............. per-phase build docs + runbook.md (apply/verify/teardown)
 ===============================================================================

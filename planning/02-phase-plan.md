@@ -67,12 +67,14 @@ non-root/read-only container security basics, two-language build discipline.
 1. **Terraform project structure**
    ```
    /infra
-     /modules          (network, ecr, eks, iam-oidc, observability)
+     /bootstrap        (one-time: S3 remote-state bucket + lock)
+     /modules          (network, ecr, eks, iam-oidc, security, observability, alb-controller)
      /envs
-       /dev            (dev.tfvars, backend config)
-     main.tf, variables.tf, outputs.tf
+       /dev            (main.tf, variables.tf, outputs.tf, backend.tf, dev.tfvars)
    ```
-2. **Remote state:** S3 bucket + DynamoDB lock table for Terraform state.
+2. **Remote state:** versioned, encrypted S3 bucket for Terraform state, with state
+   locking. (The implementation uses S3 native locking; the classic equivalent is a
+   DynamoDB lock table — either prevents concurrent state corruption.)
 3. **Networking module:** VPC (10.0.0.0/16), public + private subnets across 2 AZs,
    Internet Gateway, NAT Gateway, route tables.
 4. **ECR module:** one repository per app (`orders-node`, `users-python`).

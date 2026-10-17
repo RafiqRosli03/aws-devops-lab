@@ -39,7 +39,8 @@ infra-as-code, and the AWS wiring around them.
 
 - **Account:** `497862079645`
 - **Region:** `ap-southeast-5` (Malaysia)
-- **Repo:** `RafiqRosli03/devops-lab` (GitLab)
+- **Portfolio mirror:** `github.com/RafiqRosli03/aws-devops-lab` (GitHub — browse the code)
+- **CI/CD project:** `RafiqRosli03/devops-lab` (GitLab — runs the pipeline; this path is what the OIDC trust is scoped to)
 - **Cluster:** `devops-lab-dev` (Amazon EKS, Kubernetes 1.31)
 
 **Build order & dependencies:** Phase 1 (local) → Phase 2 (infra the apps deploy onto)

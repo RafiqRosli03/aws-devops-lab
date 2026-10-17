@@ -7,7 +7,8 @@ the pipeline, not the apps, is the point.
 
 - **Account:** `497862079645`
 - **Region:** `ap-southeast-5` (Malaysia)
-- **Repo:** `RafiqRosli03/devops-lab` (GitLab)
+- **Portfolio mirror:** `github.com/RafiqRosli03/aws-devops-lab` (GitHub — browse the code)
+- **CI/CD project:** GitLab (the `.gitlab-ci.yml` pipeline + OIDC trust run here)
 - **Cluster:** `devops-lab-dev` (Amazon EKS, Kubernetes 1.31)
 
 ## Architecture (high level)
