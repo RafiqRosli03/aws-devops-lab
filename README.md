@@ -54,13 +54,13 @@ CloudWatch + GuardDuty + Security Hub watch the account
 ```
 .
 ├── README.md                 <- you are here (project front page)
-├── planning/                 <- all planning + design docs (Markdown)
-│   ├── 00-MASTER-PLAN.md          high-level overview
-│   ├── 00-project-plan.md         planning notes + locked decisions
-│   ├── 02-phase-plan.md           detailed 5-phase plan
-│   ├── 01-hld-architecture.drawio high-level design diagram
-│   ├── PHASE-1.md ... PHASE-5.md  per-phase detailed plans (incl. PHASE-2.5.md)
-│   └── AWS-DEVOPS-LAB-BEGINNER-END-TO-END-EXPLANATION.md
+├── planning/                 <- all planning + design docs (Markdown, numbered in reading order)
+│   ├── 00-MASTER-PLAN.md               high-level overview
+│   ├── 01-project-plan.md              planning notes + locked decisions
+│   ├── 02-phase-plan.md                condensed single-page phase plan
+│   ├── 03-hld-architecture.drawio      high-level design diagram
+│   ├── 04-beginner-end-to-end-explanation.md  plain-language walkthrough
+│   └── 05-PHASE-1.md ... 10-PHASE-5.md per-phase detailed plans (incl. 07-PHASE-2.5.md)
 ├── app/                      <- the actual project
 │   ├── apps/                      orders-node (Express) + users-python (FastAPI)
 │   ├── infra/                     Terraform: bootstrap, modules, envs/dev
@@ -86,6 +86,8 @@ CloudWatch + GuardDuty + Security Hub watch the account
 
 > Code is hosted on **GitHub** (portfolio mirror) and the CI/CD pipeline targets
 > **GitLab CI** (OIDC to AWS). See [`planning/00-MASTER-PLAN.md`](planning/00-MASTER-PLAN.md) for why both.
+
+Planning docs are numbered `00`–`10` in reading order inside `planning/`.
 
 Full detail for each phase lives in `planning/` and the build notes in `app/docs/`.
 

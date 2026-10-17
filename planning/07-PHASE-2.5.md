@@ -93,4 +93,4 @@ gates, least-privilege role separation, OIDC-to-cloud for Terraform.
 > to the pipeline another way (CI/CD variables or a committed non-secret tfvars) for
 > the infra pipeline to plan/apply correctly.
 
-**Next:** [PHASE-3.md](PHASE-3.md) — the application pipeline, which reuses this OIDC model.
+**Next:** [08-PHASE-3.md](08-PHASE-3.md) — the application pipeline, which reuses this OIDC model.

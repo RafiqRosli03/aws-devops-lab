@@ -129,4 +129,4 @@ Notes:
 - [x] Registry? -> **Amazon ECR** (native to EKS).
 
 All decisions locked. Next step: build Phase 1 (both apps + Docker) — local, zero cost.
-See [PHASE-1.md](PHASE-1.md).
+See [05-PHASE-1.md](05-PHASE-1.md).

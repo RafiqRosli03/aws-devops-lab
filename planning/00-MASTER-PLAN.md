@@ -71,12 +71,12 @@ CloudWatch + GuardDuty + Security Hub watch the account
 
 | Phase | Title | Summary |
 |-------|-------|---------|
-| [1](PHASE-1.md) | Two Applications + Docker | Build both apps, unit tests, multi-stage non-root Dockerfiles, run locally with docker-compose. No AWS yet (local, zero cost). |
-| [2](PHASE-2.md) | Infrastructure as Code (Terraform) | Stand up VPC, ECR, EKS, IAM/OIDC, KMS, Secrets Manager entirely from Terraform. `apply` builds it, `destroy` removes it. |
-| [2.5](PHASE-2.5.md) | Separate Terraform CI/CD pipeline | Terraform itself behind GitLab CI: validate → plan → gated apply, on its own OIDC role. |
-| [3](PHASE-3.md) | App CI/CD Pipeline (GitLab CI) | Every push builds/tests/pushes/deploys both apps. Path filters, caching, ECR tagging by git SHA, dev→prod promotion with a manual gate, OIDC auth. |
-| [4](PHASE-4.md) | Kubernetes Hardening | Deployments/Services + shared ALB Ingress (`/orders`, `/users`), RBAC, network policies, non-root/read-only pods, secrets from Secrets Manager, HPA. |
-| [5](PHASE-5.md) | Cloud Posture & Observability | CloudWatch logs/metrics/dashboard, alarm → SNS, GuardDuty + Security Hub, cost hygiene. Confirm full teardown. |
+| [1](05-PHASE-1.md) | Two Applications + Docker | Build both apps, unit tests, multi-stage non-root Dockerfiles, run locally with docker-compose. No AWS yet (local, zero cost). |
+| [2](06-PHASE-2.md) | Infrastructure as Code (Terraform) | Stand up VPC, ECR, EKS, IAM/OIDC, KMS, Secrets Manager entirely from Terraform. `apply` builds it, `destroy` removes it. |
+| [2.5](07-PHASE-2.5.md) | Separate Terraform CI/CD pipeline | Terraform itself behind GitLab CI: validate → plan → gated apply, on its own OIDC role. |
+| [3](08-PHASE-3.md) | App CI/CD Pipeline (GitLab CI) | Every push builds/tests/pushes/deploys both apps. Path filters, caching, ECR tagging by git SHA, dev→prod promotion with a manual gate, OIDC auth. |
+| [4](09-PHASE-4.md) | Kubernetes Hardening | Deployments/Services + shared ALB Ingress (`/orders`, `/users`), RBAC, network policies, non-root/read-only pods, secrets from Secrets Manager, HPA. |
+| [5](10-PHASE-5.md) | Cloud Posture & Observability | CloudWatch logs/metrics/dashboard, alarm → SNS, GuardDuty + Security Hub, cost hygiene. Confirm full teardown. |
 
 ## How the two apps flow through all phases
 
@@ -134,16 +134,16 @@ at the **end**. Never leave the cluster running overnight for a lab.
 | File | What it is |
 |------|------------|
 | `00-MASTER-PLAN.md` | This file (high-level overview) |
-| `PHASE-1.md` | Detailed plan — apps + Docker |
-| `PHASE-2.md` | Detailed plan — Terraform / IaC |
-| `PHASE-2.5.md` | Detailed plan — separate Terraform CI/CD pipeline |
-| `PHASE-3.md` | Detailed plan — app CI/CD pipeline |
-| `PHASE-4.md` | Detailed plan — Kubernetes hardening |
-| `PHASE-5.md` | Detailed plan — observability + posture |
-| `00-project-plan.md` | Original planning notes + locked decisions |
-| `02-phase-plan.md` | Markdown version of the phase plan |
-| `01-hld-architecture.drawio` | High-level design diagram (AWS icons) |
-| `AWS-DEVOPS-LAB-BEGINNER-END-TO-END-EXPLANATION.md` | Plain-language walkthrough |
+| `01-project-plan.md` | Original planning notes + locked decisions |
+| `02-phase-plan.md` | Condensed single-page phase plan |
+| `03-hld-architecture.drawio` | High-level design diagram (AWS icons) |
+| `04-beginner-end-to-end-explanation.md` | Plain-language walkthrough |
+| `05-PHASE-1.md` | Detailed plan — apps + Docker |
+| `06-PHASE-2.md` | Detailed plan — Terraform / IaC |
+| `07-PHASE-2.5.md` | Detailed plan — separate Terraform CI/CD pipeline |
+| `08-PHASE-3.md` | Detailed plan — app CI/CD pipeline |
+| `09-PHASE-4.md` | Detailed plan — Kubernetes hardening |
+| `10-PHASE-5.md` | Detailed plan — observability + posture |
 
 **Implementation + build notes (`../app/`):**
 

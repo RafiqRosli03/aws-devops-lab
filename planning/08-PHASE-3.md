@@ -94,4 +94,4 @@ AWS IAM trusts it). No stored AWS keys.
 **Skills hit:** CI/CD stages, artifacts, caching, environment promotion, gating,
 secrets handling, OIDC-to-cloud.
 
-**Next:** [PHASE-4.md](PHASE-4.md) — harden the running Kubernetes workloads.
+**Next:** [09-PHASE-4.md](09-PHASE-4.md) — harden the running Kubernetes workloads.

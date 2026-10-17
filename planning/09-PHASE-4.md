@@ -81,4 +81,4 @@ privilege, restricted networking, non-root pods, real secrets, and autoscaling.
 **Skills hit:** K8s deployments/services/ingress, RBAC, network policies, secrets,
 pod security context, autoscaling.
 
-**Next:** [PHASE-5.md](PHASE-5.md) — observe and secure the running platform.
+**Next:** [10-PHASE-5.md](10-PHASE-5.md) — observe and secure the running platform.

@@ -181,4 +181,4 @@ services:
 **Skills hit:** Docker (multi-stage, layers, best practices), non-root/read-only
 container security basics, two-language build discipline, Git hygiene.
 
-**Next:** [PHASE-2.md](PHASE-2.md) — Terraform builds the AWS home for these images.
+**Next:** [06-PHASE-2.md](06-PHASE-2.md) — Terraform builds the AWS home for these images.

@@ -123,6 +123,6 @@ This is what lets the pipeline authenticate to AWS **without** static keys.
 **Skills hit:** Terraform (modules, remote state, apply/destroy), AWS VPC/networking,
 EKS, IAM/OIDC, KMS, ECR — all as code.
 
-**Next:** [PHASE-2.5.md](PHASE-2.5.md) — put Terraform itself behind a validated,
-gated pipeline — then [PHASE-3.md](PHASE-3.md) — the app pipeline that fills this
+**Next:** [07-PHASE-2.5.md](07-PHASE-2.5.md) — put Terraform itself behind a validated,
+gated pipeline — then [08-PHASE-3.md](08-PHASE-3.md) — the app pipeline that fills this
 environment.
